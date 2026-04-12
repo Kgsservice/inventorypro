@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dart Multiplayer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f4f3ef;min-height:100vh;color:#1a1a1a}
+#app{max-width:440px;margin:0 auto;padding:1rem}
+.scr{display:none}
+.scr.on{display:block}
+h1{font-size:24px;font-weight:700;margin-bottom:.5rem}
+h2{font-size:20px;font-weight:600;margin-bottom:1rem}
+p.sub{color:#666;font-size:14px;margin-bottom:1.25rem;line-height:1.5}
+.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:13px 20px;border:1.5px solid #1a1a1a;border-radius:10px;background:transparent;color:#1a1a1a;cursor:pointer;font-size:15px;font-weight:500;margin-bottom:8px;transition:background .15s}
+.btn:hover{background:#e8e7e2}
+.btn.pri{background:#1a1a1a;color:#fff}
+.btn.pri:hover{background:#333}
+.btn:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:8px;margin-bottom:8px}
+.row .btn{margin:0}
+.fld{width:100%;padding:12px 14px;border:1.5px solid #d0cfc9;border-radius:10px;background:#fff;color:#1a1a1a;font-size:15px;margin-bottom:8px}
+.fld:focus{outline:none;border-color:#1a1a1a}
+.err{color:#c0392b;font-size:13px;min-height:18px;margin-bottom:6px}
+.card{background:#fff;border:1px solid #e0dfd9;border-radius:14px;padding:1rem 1.25rem;margin-bottom:10px}
+.muted{color:#888;font-size:13px}
+.code-box{background:#fff;border:1.5px solid #d0cfc9;border-radius:12px;padding:1rem;text-align:center;margin:1rem 0}
+.code-big{font-family:monospace;font-size:40px;font-weight:700;letter-spacing:10px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin:1rem 0}
+.pc{background:#fff;border:1px solid #e0dfd9;border-radius:12px;padding:.75rem;text-align:center}
+.pc.active{background:#e8f4e8;border-color:#1a6b3c}
+.pc.me{border-width:2px;border-color:#1a1a1a}
+.pnm{font-size:12px;color:#888;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.psc{font-size:32px;font-weight:700}
+.pc.active .psc{color:#1a6b3c}
+.turn-lbl{text-align:center;font-size:13px;color:#888;margin-bottom:.5rem}
+canvas{display:block;margin:0 auto;cursor:crosshair}
+.drow{display:flex;gap:10px;justify-content:center;margin:.6rem 0}
+.dp{width:40px;height:40px;border-radius:50%;border:1.5px solid #d0cfc9;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+.dp.hit{background:#f0ede0;border-color:#999}
+.dp.cur{border-color:#1a1a1a;border-width:2px}
+.rslt{text-align:center;font-size:18px;font-weight:600;min-height:28px;margin:.4rem 0;color:#1a6b3c}
+.wait-box{text-align:center;padding:3rem 1rem}
+.wait-box p{font-size:16px;margin-bottom:.5rem}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:#eee;color:#555;margin-left:6px}
+.trophy{width:72px;height:72px;border-radius:50%;background:#f5d020;margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;color:#5d4200}
+.conn-status{position:fixed;bottom:12px;right:12px;font-size:12px;background:#1a1a1a;color:#fff;padding:4px 10px;border-radius:20px;opacity:0;transition:opacity .3s}
+.conn-status.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HOME -->
+<div id="s-home" class="scr on">
+  <h1>🎯 Dart Multiplayer</h1>
+  <p class="sub">เล่นกับเพื่อนผ่านอินเทอร์เน็ต<br>ส่งไฟล์นี้ให้เพื่อน แล้วใช้รหัสห้องเพื่อเจอกัน</p>
+  <input class="fld" id="f-name" placeholder="ชื่อผู้เล่น (ชื่อเล่นก็ได้)" maxlength="14">
+  <button class="btn pri" onclick="createRoom()">+ สร้างห้อง</button>
+  <div class="row">
+    <input class="fld" id="f-code" placeholder="รหัสห้อง 6 ตัว" maxlength="6" style="margin:0;text-transform:uppercase">
+    <button class="btn" style="flex:0 0 100px" onclick="joinRoom()">เข้าร่วม</button>
+  </div>
+  <p class="err" id="herr"></p>
+  <p class="muted" id="hstatus"></p>
+</div>
+
+<!-- LOBBY -->
+<div id="s-lobby" class="scr">
+  <h2>ห้องรอ</h2>
+  <p class="muted">แชร์รหัสนี้ให้เพื่อนกรอก</p>
+  <div class="code-box">
+    <div class="code-big" id="lcode"></div>
+    <p class="muted" style="margin-top:6px">รหัสห้อง</p>
+  </div>
+  <div id="lplayers"></div>
+  <p class="muted" id="lstatus" style="text-align:center;margin:.5rem 0"></p>
+  <button class="btn pri" id="sbtn" style="display:none" onclick="hostStartGame()">เริ่มเกม!</button>
+</div>
+
+<!-- GAME -->
+<div id="s-game" class="scr">
+  <div class="pgrid" id="gplayers"></div>
+  <p class="turn-lbl" id="tlabel"></p>
+  <div id="my-area" style="display:none">
+    <canvas id="board" width="288" height="288"></canvas>
+    <div class="rslt" id="drslt"></div>
+    <div class="drow" id="drow"></div>
+    <button class="btn pri" id="tbtn" onclick="throwDart()" style="margin-top:.5rem">ขว้างปา!</button>
+  </div>
+  <div id="wait-area" class="wait-box" style="display:none">
+    <p id="wmsg"></p>
+    <p class="muted" id="wsub"></p>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="s-res" class="scr" style="text-align:center;padding:1.5rem 0">
+  <div class="trophy">1</div>
+  <h1 id="wname" style="margin-bottom:.25rem"></h1>
+  <p class="muted" style="margin-bottom:1.5rem">ชนะเลิศ!</p>
+  <div class="pgrid" id="fscores"></div>
+  <button class="btn pri" style="margin-top:1rem" onclick="location.reload()">เล่นใหม่</button>
+</div>
+
+</div>
+<div class="conn-status" id="connStatus"></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const SECTORS=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+const START=301;
+let peer=null, conns=[], hostConn=null;
+let isHost=false, myName='', roomCode='', myId='';
+let gameState=null, turnDarts=[], aimRaf=null, aimX=0, aimY=0, aimPh=0, canThrow=false;
+
+function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));document.getElementById('s-'+id).classList.add('on')}
+function setErr(m){document.getElementById('herr').textContent=m}
+function setStatus(m){document.getElementById('hstatus').textContent=m}
+function notify(msg,dur=2000){const el=document.getElementById('connStatus');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur)}
+
+function createPeer(onOpen){
+  peer=new Peer({debug:0});
+  peer.on('open',id=>{myId=id;onOpen(id)});
+  peer.on('error',e=>{setErr('ผิดพลาด: '+e.type);setStatus('')});
+}
+
+// ── CREATE ROOM (HOST) ───────────────────────────────────────────
+function createRoom(){
+  myName=document.getElementById('f-name').value.trim();
+  if(!myName){setErr('กรุณาใส่ชื่อ');return}
+  setErr('');setStatus('กำลังสร้างห้อง...');
+  createPeer(id=>{
+    // ใช้ Peer ID ที่ได้จาก server เป็นรหัสห้องเลย
+    roomCode=id; isHost=true;
+    gameState={players:[{id:myId,name:myName,score:START}],cur:0,phase:'waiting',turnDarts:[],winner:null,round:1};
+    peer.on('connection',conn=>{
+      conns.push(conn);
+      conn.on('open',()=>notify('มีคนเข้าร่วม!'));
+      conn.on('data',d=>handleHostData(conn,d));
+      conn.on('close',()=>{conns=conns.filter(c=>c!==conn);broadcastState()});
+    });
+    document.getElementById('lcode').textContent=roomCode;
+    show('lobby');renderLobby();setStatus('');
+  });
+}
+
+// ── JOIN ROOM (CLIENT) ───────────────────────────────────────────
+function joinRoom(){
+  myName=document.getElementById('f-name').value.trim();
+  const code=document.getElementById('f-code').value.trim();
+  if(!myName){setErr('กรุณาใส่ชื่อ');return}
+  if(!code){setErr('กรุณาใส่รหัสห้อง');return}
+  setErr('');setStatus('กำลังเชื่อมต่อ...');
+  createPeer(id=>{
+    myId=id;roomCode=code;
+    hostConn=peer.connect(code,{reliable:true});
+    let opened=false;
+    hostConn.on('open',()=>{
+      opened=true;
+      hostConn.send({type:'join',id:myId,name:myName});
+      setStatus('');
+    });
+    hostConn.on('data',d=>handleClientData(d));
+    hostConn.on('close',()=>notify('การเชื่อมต่อถูกตัด',4000));
+    setTimeout(()=>{
+      if(!opened){setErr('เชื่อมต่อไม่ได้ — ตรวจสอบรหัสอีกครั้ง');setStatus('')}
+    },10000);
+  });
+}
+
+// ── HOST: receive from clients ───────────────────────────────────
+function handleHostData(conn, d){
+  if(d.type==='join'){
+    if(gameState.phase!=='waiting'){conn.send({type:'error',msg:'เกมเริ่มแล้ว'});return}
+    if(gameState.players.length>=4){conn.send({type:'error',msg:'ห้องเต็ม'});return}
+    if(!gameState.players.find(p=>p.id===d.id)){
+      gameState.players.push({id:d.id,name:d.name,score:START});
+    }
+    broadcastState(); renderLobby();
+  }
+  if(d.type==='throw'){
+    // Validate it's this player's turn
+    const curP=gameState.players[gameState.cur];
+    if(!curP||curP.id!==d.pid)return;
+    applyThrow(d.nx,d.ny);
+  }
+}
+
+// ── CLIENT: receive from host ────────────────────────────────────
+function handleClientData(d){
+  if(d.type==='state'){
+    gameState=d.state;
+    if(gameState.phase==='waiting'){
+      document.getElementById('lcode').textContent=roomCode;
+      show('lobby'); renderLobby();
+    } else if(gameState.phase==='playing'){
+      show('game'); renderGame();
+    } else if(gameState.phase==='finished'){
+      renderResults();
+    }
+  }
+  if(d.type==='error') alert(d.msg);
+}
+
+// ── BROADCAST ────────────────────────────────────────────────────
+function broadcastState(){
+  conns.forEach(c=>{try{c.send({type:'state',state:gameState})}catch(e){}});
+}
+
+// ── LOBBY ────────────────────────────────────────────────────────
+function renderLobby(){
+  document.getElementById('lplayers').innerHTML=gameState.players.map(p=>
+    `<div class="card" style="display:flex;align-items:center;gap:12px">
+      <div style="width:38px;height:38px;border-radius:50%;background:#f0ede0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px">${p.name[0].toUpperCase()}</div>
+      <span style="font-weight:500">${p.name}${p.id===myId?' <span class="badge">คุณ</span>':''}</span>
+      ${gameState.players[0].id===p.id?'<span class="muted" style="margin-left:auto">Host</span>':''}
+    </div>`
+  ).join('');
+  if(isHost){
+    const sbtn=document.getElementById('sbtn');
+    if(gameState.players.length>=2){sbtn.style.display='';document.getElementById('lstatus').textContent='พร้อมเริ่ม!'}
+    else{sbtn.style.display='none';document.getElementById('lstatus').textContent='รอผู้เล่นอื่นเข้าร่วม...'}
+  } else {
+    document.getElementById('sbtn').style.display='none';
+    document.getElementById('lstatus').textContent='รอ Host เริ่มเกม...';
+  }
+}
+
+function hostStartGame(){
+  gameState.phase='playing'; gameState.cur=0; gameState.turnDarts=[]; gameState.round=1;
+  broadcastState(); show('game'); renderGame();
+}
+
+// ── GAME ─────────────────────────────────────────────────────────
+function renderGame(){
+  const cur=gameState.players[gameState.cur];
+  const isMe=cur&&cur.id===myId;
+  document.getElementById('gplayers').innerHTML=gameState.players.map((p,i)=>
+    `<div class="pc ${i===gameState.cur?'active':''} ${p.id===myId?'me':''}">
+      <div class="pnm">${p.name}${p.id===myId?' ★':''}</div>
+      <div class="psc">${p.score}</div>
+      ${i===gameState.cur?'<div style="font-size:10px;color:#1a6b3c;margin-top:2px">เล่นอยู่</div>':''}
+    </div>`
+  ).join('');
+  document.getElementById('tlabel').textContent=`รอบ ${gameState.round||1}  —  ${isMe?'ตาของคุณ!':'ตาของ '+cur.name}`;
+  if(isMe){
+    document.getElementById('my-area').style.display='';
+    document.getElementById('wait-area').style.display='none';
+    turnDarts=(gameState.turnDarts||[]).slice();
+    updateDartRow();
+    if(turnDarts.length<3){if(!aimRaf)startAim();canThrow=true;document.getElementById('tbtn').disabled=false}
+  } else {
+    document.getElementById('my-area').style.display='none';
+    document.getElementById('wait-area').style.display='';
+    document.getElementById('wmsg').textContent=`${cur?cur.name:'?'} กำลังเล่น...`;
+    document.getElementById('wsub').textContent=`โยนแล้ว ${(gameState.turnDarts||[]).length} / 3 ลูก`;
+    stopAim();
+  }
+  drawBoard(isMe?aimX:null, isMe?aimY:null);
+}
+
+// ── DARTBOARD ────────────────────────────────────────────────────
+function drawBoard(hx,hy){
+  const cv=document.getElementById('board');if(!cv)return;
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,cx=W/2,cy=H/2,R=122;
+  ctx.clearRect(0,0,W,H);
+  const N=20,ANG=Math.PI*2/N,OFF=-Math.PI/2-ANG/2;
+  const RINGS=[{r:R,c:['#1a6b3c','#c0392b']},{r:R*.926,c:['#141414','#f0ede0']},{r:R*.695,c:['#1a6b3c','#c0392b']},{r:R*.635,c:['#141414','#f0ede0']}];
+  for(let i=0;i<N;i++){const a0=OFF+i*ANG,a1=a0+ANG;RINGS.forEach(rg=>{ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,rg.r,a0,a1);ctx.closePath();ctx.fillStyle=rg.c[i%2];ctx.fill();})}
+  [R,R*.926,R*.695,R*.635].forEach(r=>{ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(180,180,180,.4)';ctx.lineWidth=1;ctx.stroke()});
+  ctx.strokeStyle='rgba(180,180,180,.25)';ctx.lineWidth=.5;
+  for(let i=0;i<N;i++){const a=OFF+i*ANG;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);ctx.stroke()}
+  ctx.beginPath();ctx.arc(cx,cy,R*.175,0,Math.PI*2);ctx.fillStyle='#1a6b3c';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,R*.07,0,Math.PI*2);ctx.fillStyle='#c0392b';ctx.fill();
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='bold 9.5px system-ui';
+  for(let i=0;i<N;i++){const a=OFF+(i+.5)*ANG;ctx.fillStyle='#1a1a1a';ctx.fillText(SECTORS[i],cx+Math.cos(a)*R*1.08,cy+Math.sin(a)*R*1.08)}
+  turnDarts.forEach((d,i)=>{const px=cx+d.nx*R,py=cy+d.ny*R;ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fillStyle=['#e74c3c','#3498db','#f39c12'][i];ctx.fill();ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.5;ctx.stroke()});
+  if(hx!==null){const px=cx+hx*R,py=cy+hy*R;ctx.strokeStyle='rgba(231,76,60,.9)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(px-14,py);ctx.lineTo(px+14,py);ctx.stroke();ctx.beginPath();ctx.moveTo(px,py-14);ctx.lineTo(px,py+14);ctx.stroke();ctx.beginPath();ctx.arc(px,py,9,0,Math.PI*2);ctx.strokeStyle='rgba(231,76,60,.35)';ctx.lineWidth=1.5;ctx.stroke()}
+}
+
+function calcScore(nx,ny){
+  const r=Math.sqrt(nx*nx+ny*ny);
+  if(r<=.07)return{score:50,label:'Bullseye! (50)'};
+  if(r<=.175)return{score:25,label:'Bull (25)'};
+  let a=Math.atan2(nx,-ny)*180/Math.PI;if(a<0)a+=360;
+  const v=SECTORS[Math.floor(((a+9)%360)/18)];
+  if(r<=.635)return{score:v,label:`${v}`};
+  if(r<=.695)return{score:v*3,label:`Triple ${v}  (${v*3})`};
+  if(r<=.926)return{score:v,label:`${v}`};
+  if(r<=1.0)return{score:v*2,label:`Double ${v}  (${v*2})`};
+  return{score:0,label:'พลาด!'};
+}
+
+function startAim(){
+  if(aimRaf)return;
+  function tick(){aimPh+=.038;aimX=Math.sin(aimPh*1.3)*.6+Math.sin(aimPh*.7)*.2;aimY=Math.cos(aimPh)*.6+Math.cos(aimPh*.5)*.2;const r=Math.sqrt(aimX*aimX+aimY*aimY);if(r>.95){aimX*=.95/r;aimY*=.95/r}drawBoard(aimX,aimY);aimRaf=requestAnimationFrame(tick)}
+  aimRaf=requestAnimationFrame(tick);
+}
+function stopAim(){if(aimRaf){cancelAnimationFrame(aimRaf);aimRaf=null}drawBoard(null,null)}
+
+function updateDartRow(){
+  document.getElementById('drow').innerHTML=[0,1,2].map(i=>{const d=turnDarts[i];return`<div class="dp ${d?'hit':i===turnDarts.length?'cur':''}">${d?d.score:i+1}</div>`}).join('');
+}
+
+// ── THROW ────────────────────────────────────────────────────────
+function throwDart(){
+  if(!canThrow||turnDarts.length>=3)return;
+  canThrow=false;document.getElementById('tbtn').disabled=true;
+  const nx=aimX+(Math.random()-.5)*.045, ny=aimY+(Math.random()-.5)*.045;
+  if(isHost){
+    applyThrow(nx,ny);
+  } else {
+    // Send to host
+    const cur=gameState.players[gameState.cur];
+    if(hostConn)hostConn.send({type:'throw',pid:myId,nx,ny});
+    // Optimistic local preview
+    const res=calcScore(nx,ny);
+    document.getElementById('drslt').textContent=res.label;
+    turnDarts.push({score:res.score,label:res.label,nx,ny});
+    updateDartRow();drawBoard(aimX,aimY);
+    if(turnDarts.length<3){setTimeout(()=>{canThrow=true;document.getElementById('tbtn').disabled=false},400)}
+  }
+}
+
+function applyThrow(nx,ny){
+  const res=calcScore(nx,ny);
+  gameState.turnDarts=(gameState.turnDarts||[]);
+  gameState.turnDarts.push({score:res.score,label:res.label,nx,ny});
+
+  // Update local display
+  turnDarts=gameState.turnDarts.slice();
+  document.getElementById('drslt').textContent=res.label;
+  updateDartRow();drawBoard(aimX,aimY);
+
+  if(gameState.turnDarts.length>=3){
+    stopAim();
+    const total=gameState.turnDarts.reduce((s,d)=>s+d.score,0);
+    const me=gameState.players.find(p=>p.id===myId);
+    const ns=me.score-total;
+    if(ns<0){document.getElementById('drslt').textContent=`Bust! (คะแนนคงเดิม ${me.score})`}
+    else{me.score=ns;if(ns===0){gameState.phase='finished';gameState.winner=myId}}
+    if(gameState.phase!=='finished'){
+      gameState.cur=(gameState.cur+1)%gameState.players.length;
+      if(gameState.cur===0)gameState.round=(gameState.round||1)+1;
+      gameState.turnDarts=[];turnDarts=[];
+    }
+    broadcastState();
+    setTimeout(()=>{if(gameState.phase==='finished')renderResults();else{renderGame();if(isMe2())startAim()}},1200);
+  } else {
+    broadcastState();
+    canThrow=true;document.getElementById('tbtn').disabled=false;
+  }
+}
+
+function isMe2(){const cur=gameState.players[gameState.cur];return cur&&cur.id===myId}
+
+// ── RESULTS ──────────────────────────────────────────────────────
+function renderResults(){
+  stopAim();
+  const w=gameState.players.find(p=>p.id===gameState.winner);
+  document.getElementById('wname').textContent=w?w.name:'?';
+  const sorted=[...gameState.players].sort((a,b)=>a.score-b.score);
+  document.getElementById('fscores').innerHTML=sorted.map((p,i)=>
+    `<div class="pc ${p.id===gameState.winner?'active':''}">
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px">${['1st','2nd','3rd','4th'][i]}</div>
+      <div style="font-weight:600">${p.name}</div>
+      <div class="muted">เหลือ ${p.score}</div>
+    </div>`
+  ).join('');
+  show('res');
+}
+
+// Init
+drawBoard(null,null);
+</script>
+</body>
+</html>
